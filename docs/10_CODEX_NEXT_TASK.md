@@ -2,9 +2,11 @@
 
 ## 当前任务状态
 
-当前处于 M3：基础框架实现。
+当前处于 M4：最小真实 IBI 算法实现。
 
-本任务要求 Codex 编写最小 C99 算法库框架和基础 host 单元测试。
+M3 已完成并合并。M4 的目标是在不改变 public API 语义的前提下，让算法在简单、干净的 PPG 输入上能够产生逐搏 IBI 输出。
+
+M4 仍不是最终产品级算法；本阶段不做 ECG 验证工具、不做复杂 SQI、不做 HRV/RMSSD。
 
 ## 0. Codex 必须先阅读
 
@@ -22,25 +24,23 @@
 10. `docs/17_M2_RESOURCE_BUDGET_SPEC.md`
 11. `docs/20_M3_INTERFACE_CONTRACT.md`
 12. `docs/21_M3_REVIEW_CHECKLIST.md`
+13. `docs/22_M3_CODEX_REPORT.md`
+14. `docs/23_M4_MINIMAL_IBI_SPEC.md`
+15. `docs/24_M4_TEST_SPEC.md`
+16. `docs/25_M4_REVIEW_CHECKLIST.md`
 
-如果发现文档冲突，不要自行修改 Owner 已确认决策；请在报告中标记 S0。
+如果发现文档冲突，不要自行修改 Owner 已确认决策；请在 `docs/26_M4_CODEX_REPORT.md` 中标记 S0。
 
-## 1. M3 目标
+## 1. M4 目标
 
-实现 `ppg_ibi` 基础框架，不实现完整 IBI 检测算法。
+实现最小真实 IBI 输出能力：
 
-M3 只做：
-
-1. 目录结构；
-2. 公开头文件；
-3. context / config / input / output 类型；
-4. 初始化和 reset；
-5. process 单样本入口；
-6. 状态机基础转换；
-7. `allow_measure` 门控；
-8. timestamp 丢点 flag；
-9. warmup 计时；
-10. host 单元测试。
+1. 保持 M3 public API 不变；
+2. 在 `allow_measure=true` 且状态进入 `TRACK` 后，根据 PPG 检测心搏；
+3. 每检测到一个有效新心搏，并且与上一有效心搏形成合法间隔时，输出一次 IBI；
+4. 非输出时 `output.valid=false`；
+5. 运动暂停、恢复、warmup、丢点行为继续符合 M3；
+6. 新增 host 合成 PPG 测试，验证算法能输出约 1000ms / 800ms 级别的 IBI。
 
 ## 2. 必须新增或更新的文件
 
@@ -50,129 +50,159 @@ M3 只做：
 include/ppg_ibi.h
 src/ppg_ibi.c
 tests/test_ppg_ibi_basic.c
+tests/test_ppg_ibi_synthetic.c
 Makefile
-docs/22_M3_CODEX_REPORT.md
+docs/26_M4_CODEX_REPORT.md
 ```
 
-不得删除 M0/M1/M2 文档。
+允许更新 `docs/22_M3_CODEX_REPORT.md` 以外的文档吗？
+- 不允许修改 Owner 已确认的 M0/M1/M2/M3 决策文档。
+- 可以新增 M4 报告。
+- 不得删除任何已有文档。
 
-## 3. public API 要求
+## 3. API 与兼容性要求
 
-严格按照：
+### 3.1 必须保持
+
+1. 不得删除或重命名 M3 public API；
+2. 不得改变 `ppg_ibi_config_t`、`ppg_ibi_input_t`、`ppg_ibi_output_t` 已有字段含义；
+3. 不得改变默认配置值；
+4. 不得改变状态枚举数值；
+5. 不得改变 flags 数值；
+6. 不得引入动态内存接口；
+7. `ppg_ibi_process()` 仍然每次只处理一个 4 路同步 PPG 样本。
+
+### 3.2 允许
+
+1. 允许在 `ppg_ibi_context_t` 末尾新增内部状态字段；
+2. 允许新增内部 `static` 函数；
+3. 允许新增内部宏；
+4. 允许新增测试文件。
+
+## 4. 算法实现要求
+
+请严格参考：
 
 ```text
-docs/20_M3_INTERFACE_CONTRACT.md
+docs/23_M4_MINIMAL_IBI_SPEC.md
 ```
 
-实现 public API。
+M4 推荐实现为：
 
-不得自行改名、删字段、改字段含义或改变默认值。
+1. 四通道 PPG 分别做轻量 DC 跟踪；
+2. 对 DC 去除后的信号做轻量平滑；
+3. 将 4 路处理后的信号合成为一个 composite PPG；
+4. 使用局部极值 + 动态阈值 + refractory 的方式检测心搏；
+5. 支持正向/反向 PPG 极性锁定；
+6. 第一拍只用于建立 `last_beat_timestamp`，第二拍开始才能输出 IBI；
+7. 输出 IBI 时设置 `valid=true`、`ibi_ms>0`、`confidence>0`；
+8. 没有新 IBI 时设置 `valid=false`、`ibi_ms=0`、`confidence=0.0f`。
 
-## 4. 算法核心实现要求
+## 5. 状态机要求
 
-### 4.1 必须满足
-
-1. C99；
-2. 不使用 `malloc/free/calloc/realloc`；
-3. 算法核心不使用文件系统；
-4. 算法核心不使用 `printf`；
-5. 算法核心不依赖 OS、线程或第三方库；
-6. 所有运行期状态都在 `ppg_ibi_context_t` 中；
-7. `config == NULL` 时使用默认配置；
-8. `process` 每次只处理一个 4 路同步 PPG 样本；
-9. M3 不输出真实 IBI：`output.valid` 必须始终为 `false`。
-
-### 4.2 状态机行为
-
-必须实现以下最小状态行为：
+必须继续满足 M3 状态机要求：
 
 1. `init/reset` 后状态为 `INIT`；
 2. 第一帧 `allow_measure=true` 时进入 `ACQUIRE`；
-3. `ACQUIRE` 连续 warmup 满 `warmup_ms` 后进入 `TRACK`；
+3. `ACQUIRE` warmup 满 `warmup_ms` 后进入 `TRACK`；
 4. 任意状态下 `allow_measure=false` 立即进入 `HOLD`；
 5. `HOLD` 收到 `allow_measure=true` 后进入 `REACQUIRE`；
-6. `REACQUIRE` 连续 warmup 满 `warmup_ms` 后进入 `TRACK`；
+6. `REACQUIRE` warmup 满 `warmup_ms` 后进入 `TRACK`；
 7. 严重丢点进入 `REACQUIRE`；
 8. 轻微丢点只设置 flag，不进入 `REACQUIRE`。
 
-### 4.3 flags 行为
+新增 M4 要求：
+
+1. `HOLD`、`ACQUIRE`、`REACQUIRE` 阶段不得输出 IBI；
+2. 从 `HOLD` 恢复或严重丢点进入 `REACQUIRE` 时，必须清除 beat 历史，避免跨段生成错误 IBI；
+3. 进入 `TRACK` 后可以开始检测 beat；
+4. 第一个 beat 不输出 IBI；第二个合法 beat 起才输出。
+
+## 6. flags 行为要求
 
 至少满足：
 
 1. warmup 阶段包含 `PPG_IBI_FLAG_WARMUP`；
 2. 运动暂停包含 `PPG_IBI_FLAG_MOTION_HOLD`；
-3. 无 beat 输出包含 `PPG_IBI_FLAG_NO_BEAT`；
-4. 轻微丢点包含 `PPG_IBI_FLAG_DROPOUT_LIGHT`；
-5. 严重丢点包含 `PPG_IBI_FLAG_DROPOUT_SEVERE`。
+3. 没有新 IBI 输出时包含 `PPG_IBI_FLAG_NO_BEAT`；
+4. 输出有效 IBI 时不应设置 `PPG_IBI_FLAG_NO_BEAT`；
+5. 轻微丢点包含 `PPG_IBI_FLAG_DROPOUT_LIGHT`；
+6. 严重丢点包含 `PPG_IBI_FLAG_DROPOUT_SEVERE`；
+7. 信号质量不足时包含 `PPG_IBI_FLAG_LOW_SQI`；
+8. 候选 IBI 超出 `[ibi_min_ms, ibi_max_ms]` 时包含 `PPG_IBI_FLAG_IBI_OUT_OF_RANGE`，且不得输出 valid IBI。
 
-## 5. Host 测试要求
+## 7. Host 测试要求
 
-请实现 `tests/test_ppg_ibi_basic.c`。
+请严格参考：
 
-测试可使用 `assert` 或自定义最小测试宏。测试代码可以使用 `stdio` 打印，但算法核心不可以。
+```text
+docs/24_M4_TEST_SPEC.md
+```
 
-至少覆盖：
+至少包含：
 
-1. 默认配置值正确；
-2. `init` 后为 `INIT`；
-3. `reset` 后回到 `INIT`；
-4. 第一帧允许测量后进入 `ACQUIRE`；
-5. warmup 满 5 秒后进入 `TRACK`，但仍无 IBI 输出；
-6. `allow_measure=false` 后立即进入 `HOLD`；
-7. 从 `HOLD` 恢复后进入 `REACQUIRE`；
-8. `REACQUIRE` warmup 满 5 秒后进入 `TRACK`；
-9. 轻微丢点设置 `DROPOUT_LIGHT` 且不进入 `REACQUIRE`；
-10. 严重丢点设置 `DROPOUT_SEVERE` 且进入 `REACQUIRE`；
-11. M3 全流程 `output.valid` 始终为 `false`；
-12. null 参数返回预期错误码。
+1. 保留并通过 M3 基础测试；
+2. 新增 `tests/test_ppg_ibi_synthetic.c`；
+3. 合成 60 bpm 左右 PPG，期望输出多个约 1000ms IBI；
+4. 合成 75 bpm 左右 PPG，期望输出多个约 800ms IBI；
+5. flat PPG 不应输出 IBI，并应出现 LOW_SQI；
+6. `allow_measure=false` 阶段不得输出 IBI；
+7. 从 HOLD 恢复后必须重新 warmup，不能跨 HOLD 生成 IBI；
+8. 严重丢点后必须重新 REACQUIRE，不能跨 dropout 生成 IBI；
+9. 全部测试通过 `make test`。
 
-## 6. 编译与测试要求
+## 8. 编译与测试要求
 
-请提供 `Makefile`，至少支持：
+`Makefile` 至少支持：
 
 ```bash
 make test
 make clean
 ```
 
-`make test` 应执行类似如下编译并运行测试：
+`make test` 应至少编译并运行：
 
-```bash
-cc -std=c99 -Wall -Wextra -Werror -pedantic -Iinclude \
-  src/ppg_ibi.c tests/test_ppg_ibi_basic.c \
-  -o build/test_ppg_ibi_basic
-./build/test_ppg_ibi_basic
+```text
+build/test_ppg_ibi_basic
+build/test_ppg_ibi_synthetic
 ```
 
-如果环境没有 `cc`，请在报告中说明实际使用的编译命令。
+编译参数保持严格：
 
-## 7. 禁止事项
+```bash
+-std=c99 -Wall -Wextra -Werror -pedantic -Iinclude
+```
 
-M3 禁止：
+算法核心不得使用 `printf`、文件系统、OS、线程、第三方库。
+测试文件可以使用 `stdio`。
 
-1. 实现完整 PPG 滤波；
-2. 实现峰值检测；
-3. 输出真实 IBI；
-4. 实现 ECG 验证工具；
-5. 实现复杂 SQI；
-6. 实现 HRV / RMSSD；
-7. 引入第三方库；
-8. 使用动态内存；
-9. 改变 M2 已确认 API 语义；
-10. 要求 Owner 做新的算法决策。
+## 9. 禁止事项
 
-## 8. 输出报告
+M4 禁止：
+
+1. 计算 HRV / RMSSD；
+2. 实现 ECG 验证工具；
+3. 引入第三方库；
+4. 使用动态内存；
+5. 改变 public API 已有字段语义；
+6. 要求 Owner 做新的算法决策；
+7. 为了通过测试写死固定时间点输出；
+8. 实现复杂窗口缓存导致 RAM 超过 20KB；
+9. 修改 M0/M1/M2/M3 已确认文档；
+10. 继续进入 M5。
+
+## 10. 输出报告
 
 请生成：
 
 ```text
-docs/22_M3_CODEX_REPORT.md
+docs/26_M4_CODEX_REPORT.md
 ```
 
 报告控制在 1 页以内，包含：
 
 ```text
-# 22_M3_CODEX_REPORT.md
+# 26_M4_CODEX_REPORT.md
 
 ## 结论
 通过 / 不通过
@@ -187,15 +217,20 @@ docs/22_M3_CODEX_REPORT.md
 - 运行命令
 - 结果
 
+## 资源评估
+- context 大小估计
+- 是否使用动态内存
+
 ## 已知限制
-- M3 不实现真实 IBI
+- M4 不是最终产品级算法
+- 未做 ECG 验证
 
 ## 需要 Owner 决策
 无 / 有：xxx
 ```
 
-## 9. 完成后不要继续进入 M4
+## 11. 完成后停止
 
-完成 M3 后停止。
+完成 M4 后停止。
 
-不要实现 M4 内容。
+不要实现 M5 内容。
