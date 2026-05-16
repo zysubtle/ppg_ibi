@@ -70,6 +70,19 @@ typedef struct {
     uint32_t process_count;
     uint32_t dropout_light_count;
     uint32_t dropout_severe_count;
+    float ch_dc[PPG_IBI_NUM_CHANNELS];
+    float ch_lp[PPG_IBI_NUM_CHANNELS];
+    float dc_estimate;
+    float lp_estimate;
+    float signal_abs_ema;
+    float prev2_signal;
+    float prev1_signal;
+    bool has_prev2_signal;
+    bool has_prev1_signal;
+    bool has_last_beat;
+    uint32_t last_beat_timestamp_ms;
+    uint32_t beat_count;
+    uint32_t valid_ibi_count;
 } ppg_ibi_context_t;
 
 void ppg_ibi_get_default_config(ppg_ibi_config_t *config);
