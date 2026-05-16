@@ -1,15 +1,21 @@
 CC := cc
 CFLAGS := -std=c99 -Wall -Wextra -Werror -pedantic -Iinclude
-TARGET := build/test_ppg_ibi_basic
+BASIC := build/test_ppg_ibi_basic
+SYNTH := build/test_ppg_ibi_synthetic
 
 .PHONY: test clean
 
-test: $(TARGET)
-	./$(TARGET)
+test: $(BASIC) $(SYNTH)
+	./$(BASIC)
+	./$(SYNTH)
 
-$(TARGET): src/ppg_ibi.c tests/test_ppg_ibi_basic.c include/ppg_ibi.h
+$(BASIC): src/ppg_ibi.c tests/test_ppg_ibi_basic.c include/ppg_ibi.h
 	mkdir -p build
-	$(CC) $(CFLAGS) src/ppg_ibi.c tests/test_ppg_ibi_basic.c -o $(TARGET)
+	$(CC) $(CFLAGS) src/ppg_ibi.c tests/test_ppg_ibi_basic.c -lm -o $(BASIC)
+
+$(SYNTH): src/ppg_ibi.c tests/test_ppg_ibi_synthetic.c include/ppg_ibi.h
+	mkdir -p build
+	$(CC) $(CFLAGS) src/ppg_ibi.c tests/test_ppg_ibi_synthetic.c -lm -o $(SYNTH)
 
 clean:
 	rm -rf build
