@@ -2,17 +2,18 @@
 
 ## 当前任务状态
 
-当前处于 **M5：ECG 真值验证工具与数据契约**。
+当前处于 **M5a：验证核心重拆分任务**。
 
-M4 已完成并合并。M5 的目标不是继续优化 PPG-IBI 算法本身，而是建立一个可复现的 host 侧验证入口，用于后续把真实 ECG 真值数据接入，并输出基础误差指标。
+背景：M5 原任务经过两轮修复仍未通过评审。根据 OAR-M 规则，本阶段不继续做小修，而是把 M5 拆小。  
+M5a 只建立 **metrics + real self-test 验证核心**。CSV 文件读取、output_prefix 文件输出、复杂非法行处理放到 M5b。
 
-M5 仍不是最终医学/产品级验证；本阶段只建立验证框架、统一 CSV 数据契约、生成基础指标，并用内部 synthetic self-test 证明工具可运行。
+请从当前 `dev` 分支开始，不要基于未合并的 PR #5 / #6 / #7 继续小修。
 
 ---
 
 ## 0. Codex 必须先阅读
 
-请先阅读以下文件：
+请先阅读：
 
 1. `AGENTS.md`
 2. `README.md`
@@ -22,131 +23,103 @@ M5 仍不是最终医学/产品级验证；本阶段只建立验证框架、统�
 6. `docs/09_CODEX_RUNBOOK.md`
 7. `docs/13_M2_INTERFACE_SPEC.md`
 8. `docs/14_M2_ALGORITHM_SPEC.md`
-9. `docs/15_M2_STATE_AND_QUALITY_SPEC.md`
-10. `docs/17_M2_RESOURCE_BUDGET_SPEC.md`
-11. `docs/20_M3_INTERFACE_CONTRACT.md`
-12. `docs/22_M3_CODEX_REPORT.md`
-13. `docs/23_M4_MINIMAL_IBI_SPEC.md`
-14. `docs/24_M4_TEST_SPEC.md`
-15. `docs/26_M4_CODEX_REPORT.md`
-16. `docs/27_M5_DATA_CONTRACT.md`
-17. `docs/28_M5_VALIDATION_TOOL_SPEC.md`
-18. `docs/29_M5_REVIEW_CHECKLIST.md`
+9. `docs/20_M3_INTERFACE_CONTRACT.md`
+10. `docs/23_M4_MINIMAL_IBI_SPEC.md`
+11. `docs/24_M4_TEST_SPEC.md`
+12. `docs/26_M4_CODEX_REPORT.md`
+13. `docs/27_M5_DATA_CONTRACT.md`
+14. `docs/28_M5_VALIDATION_TOOL_SPEC.md`
+15. `docs/32_M5A_SPLIT_SPEC.md`
+16. `docs/33_M5A_REVIEW_CHECKLIST.md`
 
-如果发现文档冲突，不要自行修改 Owner 已确认决策；请在 `docs/31_M5_CODEX_REPORT.md` 中标记 S0。
+如果发现文档冲突，不要修改 Owner 已确认决策；在 `docs/34_M5A_CODEX_REPORT.md` 中标记 S0。
 
 ---
 
-## 1. M5 目标
+## 1. M5a 目标
 
-实现一个 host 侧 ECG 真值验证入口：
+实现一个最小 host 验证核心，证明：
 
-1. 保持 M4 public API 不变；
-2. 保持 M4 basic 和 synthetic 测试继续通过；
-3. 新增一个 normalized CSV 评估工具；
-4. 支持读取 PPG + allow_measure + ECG IBI truth；
-5. 调用 `ppg_ibi_process()`，收集 PPG IBI 输出；
-6. 与 ECG truth 做基础匹配；
-7. 输出基础指标；
-8. 提供 `--self-test`，在无真实数据时也能验证工具链；
-9. 生成 M5 报告。
+1. `ppg_ibi_process()` 可以在 host 工具中被逐样本调用；
+2. prediction events 与 truth events 可以被收集；
+3. metrics engine 正确实现 **500ms 时间窗匹配**；
+4. self-test 真实生成 60 bpm / 75 bpm synthetic PPG + ECG truth；
+5. self-test 至少 16 秒；
+6. self-test 输出实际指标并根据阈值返回 0 / 非 0；
+7. M3/M4 既有测试继续通过。
 
 ---
 
-## 2. 必须新增或更新的文件
-
-请新增或更新：
+## 2. 必须新增或更新文件
 
 ```text
 tools/ppg_ibi_eval.c
 Makefile
-docs/31_M5_CODEX_REPORT.md
+docs/34_M5A_CODEX_REPORT.md
 ```
 
-允许新增辅助文件，例如：
+可以新增辅助测试文件，但不是必须。
 
-```text
-tools/README.md
-tests/test_ppg_ibi_eval_*.c
-tests/fixtures/*.csv
-```
-
-但不要删除已有文档、已有测试、已有源码。
+不要删除已有文档、已有测试、已有源码。
 
 ---
 
-## 3. 必须保持不变
+## 3. M5a 工具 CLI 范围
 
-1. 不得删除或重命名 M3/M4 public API；
-2. 不得改变 `ppg_ibi_config_t`、`ppg_ibi_input_t`、`ppg_ibi_output_t` 已有字段含义；
-3. 不得改变状态枚举数值；
-4. 不得改变 flags 数值；
-5. 不得改变默认配置值；
-6. 不得实现 HRV / RMSSD；
-7. 不得引入第三方库；
-8. 算法核心不得使用文件系统、`printf`、OS、线程或动态内存；
-9. 除非为修复编译/测试失败，不要修改 `src/ppg_ibi.c` 的 M4 算法主逻辑。
-
----
-
-## 4. M5 数据契约
-
-请严格参考：
-
-```text
-docs/27_M5_DATA_CONTRACT.md
-```
-
-M5 默认 normalized CSV 格式为：
-
-```csv
-timestamp_ms,ppg0,ppg1,ppg2,ppg3,allow_measure,ecg_ibi_ms
-```
-
-说明：
-
-1. 一行对应一个 PPG 采样点；
-2. `timestamp_ms` 为 `uint32_t` 毫秒时间戳；
-3. `ppg0..ppg3` 为 4 路同步 PPG `int32_t`；
-4. `allow_measure` 为 `0/1`；
-5. `ecg_ibi_ms` 为 ECG truth IBI，单位 ms；
-6. `ecg_ibi_ms == 0` 表示该行没有 ECG IBI truth；
-7. `ecg_ibi_ms > 0` 表示该时间点存在一个 ECG IBI truth event；
-8. 真实数据格式适配不在 M5 范围内，M5 只实现 normalized CSV。
-
----
-
-## 5. M5 验证工具要求
-
-请严格参考：
-
-```text
-docs/28_M5_VALIDATION_TOOL_SPEC.md
-```
-
-至少实现：
+M5a 只强制支持：
 
 ```bash
 build/ppg_ibi_eval --self-test
+```
+
+对于：
+
+```bash
 build/ppg_ibi_eval input.csv
 build/ppg_ibi_eval input.csv output_prefix
 ```
 
-`--self-test` 必须在没有真实 CSV 的情况下，内部生成 60 bpm 和 75 bpm synthetic PPG + ECG truth，并验证：
+M5a 可以暂时打印：
 
-1. 工具能调用 `ppg_ibi_process()`；
-2. 能收集 PPG IBI 输出；
-3. 能收集 ECG IBI truth；
-4. 能完成匹配；
-5. 匹配数量至少为 3；
-6. MAE 在合理范围内，例如 `<= 120ms`；
-7. 程序返回 0。
+```text
+CSV evaluation is not implemented in M5a; see M5b.
+```
+
+并返回非零。
+
+CSV 读取和 output_prefix 输出放到 M5b，不要在 M5a 抢做。
 
 ---
 
-## 6. 指标要求
+## 4. metrics engine 必须满足
 
-M5 至少输出以下指标：
+实现固定容量事件数组，不使用动态内存。
+
+推荐常量：
+
+```c
+#define M5A_MAX_EVENTS 10000u
+#define M5A_MATCH_WINDOW_MS 500u
+```
+
+事件结构至少包含：
+
+```c
+typedef struct {
+    uint32_t timestamp_ms;
+    uint16_t ibi_ms;
+    float confidence;
+    uint32_t flags;
+    ppg_ibi_state_t state;
+} m5a_pred_event_t;
+
+typedef struct {
+    uint32_t timestamp_ms;
+    uint16_t ibi_ms;
+} m5a_truth_event_t;
+```
+
+metrics 至少包含：
 
 ```text
 truth_count
@@ -161,95 +134,125 @@ max_abs_error_ms
 p95_abs_error_ms
 ```
 
-定义见 `docs/28_M5_VALIDATION_TOOL_SPEC.md`。
+匹配规则必须严格满足：
+
+1. 按时间顺序处理 prediction event；
+2. 为每个 prediction 寻找尚未使用的 truth event；
+3. 必须满足 `abs(pred.timestamp_ms - truth.timestamp_ms) <= 500ms`；
+4. 若多个 truth 满足，选择时间差最小者；
+5. 每个 truth 最多匹配一次；
+6. 未匹配 prediction 计为 extra；
+7. 未匹配 truth 计为 miss。
+
+事件数超过固定容量时，必须打印清晰错误并返回非零，不得静默截断。
 
 ---
 
-## 7. Makefile 要求
+## 5. self-test 必须满足
 
-更新 `Makefile`，至少支持：
+`--self-test` 内部至少执行两个场景：
 
-```bash
-make test
-make clean
+### S1：60 bpm
+
+```text
+采样率：50Hz
+时长：至少 16 秒
+目标 ECG IBI：1000ms
 ```
+
+通过条件：
+
+```text
+matched_count >= 3
+mae_ms <= 120
+max_abs_error_ms <= 200
+```
+
+### S2：75 bpm
+
+```text
+采样率：50Hz
+时长：至少 16 秒
+目标 ECG IBI：800ms
+```
+
+通过条件：
+
+```text
+matched_count >= 3
+mae_ms <= 120
+max_abs_error_ms <= 200
+```
+
+self-test 必须：
+
+1. 生成 synthetic PPG；
+2. 生成 ECG truth events；
+3. 调用 `ppg_ibi_process()`；
+4. 收集 prediction events；
+5. 调用 metrics engine；
+6. 打印实际指标；
+7. 任一场景失败则返回非零。
+
+输出示例：
+
+```text
+M5a self-test 60bpm: truth=15 pred=10 matched=9 mae_ms=20.0 max_abs_error_ms=40.0 pass
+M5a self-test 75bpm: truth=19 pred=12 matched=11 mae_ms=20.0 max_abs_error_ms=40.0 pass
+M5a self-test passed.
+```
+
+---
+
+## 6. Makefile 要求
 
 `make test` 必须：
 
-1. 编译并运行已有 M4 basic test；
-2. 编译并运行已有 M4 synthetic test；
-3. 编译 `tools/ppg_ibi_eval.c`；
+1. 编译并运行 `build/test_ppg_ibi_basic`；
+2. 编译并运行 `build/test_ppg_ibi_synthetic`；
+3. 编译 `build/ppg_ibi_eval`；
 4. 运行：
 
 ```bash
 ./build/ppg_ibi_eval --self-test
 ```
 
-编译参数继续保持严格：
+编译参数保持：
 
 ```bash
 -std=c99 -Wall -Wextra -Werror -pedantic -Iinclude
 ```
 
-如使用 `sinf/fabsf/sqrtf` 等数学函数，允许链接 `-lm`。
+如使用 `sinf/fabsf/sqrtf`，允许链接 `-lm`。
 
 ---
 
-## 8. 输出文件行为
+## 7. 禁止事项
 
-当运行：
+M5a 禁止：
 
-```bash
-build/ppg_ibi_eval input.csv output_prefix
-```
-
-建议输出：
-
-```text
-output_prefix_predictions.csv
-output_prefix_metrics.csv
-```
-
-其中：
-
-`output_prefix_predictions.csv` 至少包含：
-
-```csv
-timestamp_ms,ibi_ms,confidence,state,flags
-```
-
-`output_prefix_metrics.csv` 至少包含一行 summary 指标。
-
-如果仅传入 `input.csv`，可以只向 stdout 输出 metrics，不强制写文件。
+1. 修改 `src/ppg_ibi.c` 算法核心；
+2. 修改 M3/M4 public API；
+3. 删除 M3/M4 测试；
+4. 使用动态内存；
+5. 计算 HRV / RMSSD；
+6. 抢做 M5b 的完整 CSV 解析和 output_prefix 输出；
+7. 继续进入 M5b 或 M6。
 
 ---
 
-## 9. 禁止事项
-
-M5 禁止：
-
-1. 计算 HRV / RMSSD；
-2. 对真实 ECG 文件格式做猜测式适配；
-3. 把某个测试数据写死为固定输出；
-4. 删除 M3/M4 测试；
-5. 为了通过 self-test 而削弱 M4 synthetic IBI 测试；
-6. 继续进入 M6；
-7. 要求 Owner 做新的算法决策。
-
----
-
-## 10. 输出报告
+## 8. 输出报告
 
 请生成：
 
 ```text
-docs/31_M5_CODEX_REPORT.md
+docs/34_M5A_CODEX_REPORT.md
 ```
 
-报告控制在 1 页以内，包含：
+内容控制在 1 页以内，包含：
 
 ```text
-# 31_M5_CODEX_REPORT.md
+# 34_M5A_CODEX_REPORT.md
 
 ## 结论
 通过 / 不通过
@@ -264,18 +267,17 @@ docs/31_M5_CODEX_REPORT.md
 - 运行命令
 - 实际终端输出
 
-## 指标 self-test 结果
-- 60 bpm: xxx
-- 75 bpm: xxx
+## self-test 指标
+- 60 bpm: truth=, pred=, matched=, mae_ms=, max_abs_error_ms=
+- 75 bpm: truth=, pred=, matched=, mae_ms=, max_abs_error_ms=
 
 ## 资源评估
 - 是否修改算法核心
 - 是否使用动态内存
-- context 是否变化
+- event buffer 上限
 
 ## 已知限制
-- M5 只支持 normalized CSV
-- 未接入真实 ECG 数据格式
+- M5a 不实现 CSV 输入评估；M5b 再实现
 
 ## 需要 Owner 决策
 无 / 有：xxx
@@ -283,8 +285,6 @@ docs/31_M5_CODEX_REPORT.md
 
 ---
 
-## 11. 完成后停止
+## 9. 完成后停止
 
-完成 M5 后停止。
-
-不要实现 M6 内容。
+完成 M5a 后停止。不要实现 M5b。
