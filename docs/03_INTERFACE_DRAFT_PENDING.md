@@ -1,54 +1,14 @@
 # 03_INTERFACE_DRAFT_PENDING.md
 
-状态：待 M2 冻结，不是最终接口。
+状态：已被 M2 文档替代。
 
-本文件只记录 M2 需要讨论和冻结的接口方向，当前不代表最终 API。
+请以后以以下文件为准：
 
-## 1. 输入方向
+1. `docs/12_M2_SPEC_INDEX.md`
+2. `docs/13_M2_INTERFACE_SPEC.md`
+3. `docs/14_M2_ALGORITHM_SPEC.md`
+4. `docs/15_M2_STATE_AND_QUALITY_SPEC.md`
+5. `docs/16_M2_VALIDATION_SPEC.md`
+6. `docs/17_M2_RESOURCE_BUDGET_SPEC.md`
 
-每个输入样本建议包含：
-
-| 字段 | 当前建议 | 状态 |
-|---|---|---|
-| timestamp | `uint32_t timestamp_ms` | 待确认 |
-| ppg | 4 路 `int32_t` | 已确认方向 |
-| allow_measure | 外部运动标志，true 表示允许测量 | 待确认 |
-
-注意：外部运动标志来自外部算法或系统。当前项目不做运动识别。
-
-## 2. 输出方向
-
-每次处理一个输入样本后，输出结构建议包含：
-
-| 字段 | 当前建议 | 状态 |
-|---|---|---|
-| valid | 当前是否产生有效 IBI | 待确认 |
-| ibi_ms | IBI 数值，单位 ms | 待确认 |
-| confidence | 置信度，建议 0.0 到 1.0 | 待确认 |
-| state | 当前算法状态 | 待确认 |
-
-## 3. 状态方向
-
-状态机名称暂定：
-
-1. `INIT`
-2. `ACQUIRE`
-3. `TRACK`
-4. `HOLD`
-5. `REACQUIRE`
-
-其中：
-
-- `ACQUIRE`：启动或重新获取阶段，允许不输出；
-- `TRACK`：稳定跟踪阶段，可能逐搏输出；
-- `HOLD`：外部不允许测量或质量不足时暂停；
-- `REACQUIRE`：运动打断、严重丢点或质量崩溃后的重新获取阶段。
-
-## 4. M2 必须确认的问题
-
-1. API 是否由调用方传入 context 指针？
-2. 输出是由 process 函数直接返回，还是写入 output 结构体？
-3. `allow_measure` 为 false 时，是立即 reset，还是进入 HOLD 并保留部分历史？
-4. 丢点阈值如何定义？
-5. 置信度是简单等级，还是 0.0 到 1.0 连续值？
-6. 是否需要额外调试输出结构体？
+本文件保留用于追溯 M1 的接口草案来源，不再作为实现依据。

@@ -1,35 +1,37 @@
 # 11_PACKAGE_MANIFEST.md
 
-版本：M1 v0.1
+版本：v0.2  
+状态：M2 规格包待 Owner 确认
 
-## 文件清单
+## M1 基础文件
 
-```text
-README.md
-AGENTS.md
-docs/00_PROJECT_BRIEF.md
-docs/01_DECISION_LOG.md
-docs/02_MILESTONE_PLAN.md
-docs/03_INTERFACE_DRAFT_PENDING.md
-docs/04_OPEN_QUESTIONS.md
-docs/05_VALIDATION_PLAN_DRAFT.md
-docs/06_RESOURCE_BUDGET_DRAFT.md
-docs/07_REVIEW_PROTOCOL.md
-docs/08_OWNER_HANDOFF.md
-docs/09_CODEX_RUNBOOK.md
-docs/10_CODEX_NEXT_TASK.md
-docs/11_PACKAGE_MANIFEST.md
-include/.gitkeep
-src/.gitkeep
-tests/.gitkeep
-```
+1. `README.md`
+2. `AGENTS.md`
+3. `docs/00_PROJECT_BRIEF.md`
+4. `docs/01_DECISION_LOG.md`
+5. `docs/02_MILESTONE_PLAN.md`
+6. `docs/03_INTERFACE_DRAFT_PENDING.md`
+7. `docs/04_OPEN_QUESTIONS.md`
+8. `docs/05_VALIDATION_PLAN_DRAFT.md`
+9. `docs/06_RESOURCE_BUDGET_DRAFT.md`
+10. `docs/07_REVIEW_PROTOCOL.md`
+11. `docs/08_OWNER_HANDOFF.md`
+12. `docs/09_CODEX_RUNBOOK.md`
+13. `docs/10_CODEX_NEXT_TASK.md`
 
-## 当前不包含
+## M2 新增文件
 
-1. 算法源码；
-2. C 头文件；
-3. 测试代码；
-4. ECG 验证脚本；
-5. 完整算法规格。
+1. `docs/12_M2_SPEC_INDEX.md`
+2. `docs/13_M2_INTERFACE_SPEC.md`
+3. `docs/14_M2_ALGORITHM_SPEC.md`
+4. `docs/15_M2_STATE_AND_QUALITY_SPEC.md`
+5. `docs/16_M2_VALIDATION_SPEC.md`
+6. `docs/17_M2_RESOURCE_BUDGET_SPEC.md`
+7. `docs/18_M2_RISK_REGISTER.md`
+8. `docs/19_M3_CODEX_TASK_DRAFT.md`
 
-这些内容将在后续里程碑按阶段生成。
+## 当前源码状态
+
+当前仍不应包含算法实现代码。
+
+`src/`、`include/`、`tests/` 可以保留 `.gitkeep` 占位。
